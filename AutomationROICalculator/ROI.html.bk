@@ -1,0 +1,255 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <title>Test Automation ROI Calculator</title>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/html2pdf.js/0.10.1/html2pdf.bundle.min.js"></script>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; color: #000; }
+        input, button { margin: 5px 0; padding: 8px; }
+        table, th, td { border: 1px solid #ddd; border-collapse: collapse;  color: #000; }
+        th, td { padding: 8px; text-align: left; }
+        .add-row-btn { padding: 8px 12px; background-color: #4CAF50; color: white; border: none; cursor: pointer; }
+        .resize-container { width: 100%; max-width: 1000px; height: 400px; resize: both; overflow: auto; border: 1px solid #ccc; }
+        canvas { width: 100%; height: 100%; }
+    </style>
+</head>
+<body>
+<div id="pdfContent">
+<h2>Test Automation ROI Calculator</h2>
+
+<label>Number of Test Cycles per Year:</label><input type="number" id="testCycles" value="12"><br>
+<label>Hourly Rate ($):</label><input type="number" id="hourlyRate" value="50"><br>
+<label>Number of Years:</label><input type="number" id="numYears" value="3" min="1" oninput="calculateROI()"><br>
+
+<button onclick="calculateROI()">Calculate ROI</button>
+<button onclick="downloadAsPDF()">Download as PDF</button>
+<button onclick="toggleGrid()">Toggle Grid Lines</button>
+
+<h3>Manual Test Execution Time</h3>
+<table id="manualCostTable">
+    <thead><tr><th>Title</th><th>Hours</th><th>Rate in $</th><th>Total Cost</th><th>Other Cost</th><th>Actions</th></tr></thead>
+    <tbody></tbody>
+</table>
+<button class="add-row-btn" onclick="addRow('manualCostTable', 'manual')">Add Row</button>
+
+<h3>Execution Cost Post Automation</h3>
+<table id="executionCostTable">
+    <thead><tr><th>Title</th><th>Hours</th><th>Rate in $</th><th>Total Cost</th><th>Other Cost</th><th>Actions</th></tr></thead>
+    <tbody></tbody>
+</table>
+<button class="add-row-btn" onclick="addRow('executionCostTable', 'postAutomation')">Add Row</button>
+
+<h3>Automation Development Costs (One-time)</h3>
+<table id="devCostTable">
+    <thead><tr><th>Title</th><th>Hours</th><th>Rate in $</th><th>Total Cost</th><th>Other Cost</th><th>Actions</th></tr></thead>
+    <tbody></tbody>
+</table>
+<button class="add-row-btn" onclick="addRow('devCostTable', 'dev')">Add Row</button>
+
+<div class="resize-container"><canvas id="roiChart"></canvas></div>
+
+<script>
+let roiChart = null;
+let showGrid = true;
+
+function calculateROI() {
+    const years = parseInt(document.getElementById('numYears').value, 10);
+    const testCyclesPerYear = parseInt(document.getElementById('testCycles').value, 10);
+
+    const totalCycles = years * testCyclesPerYear;
+
+    const manualCostPerCycle = calculateTotalCost('manualCostTable');
+    const postAutomationCostPerCycle = calculateTotalCost('executionCostTable');
+    const automationDevCost = calculateTotalCost('devCostTable');
+
+    let cumulativeManual = [];
+    let cumulativePostAutomation = [];
+    let savings = [];
+    let roi = [];
+    let automationCost = [];
+
+    let manualTotal = 0;
+    let postAutoTotal = 0;
+
+    for (let cycle = 1; cycle <= totalCycles; cycle++) {
+        manualTotal += manualCostPerCycle;
+        postAutoTotal += postAutomationCostPerCycle;
+
+        cumulativeManual.push(manualTotal);
+        cumulativePostAutomation.push(postAutoTotal);
+
+        const currentSavings = manualTotal - postAutoTotal;
+        savings.push(currentSavings);
+
+        // Flat automation cost line
+        automationCost.push(automationDevCost);
+
+        roi.push(currentSavings - automationDevCost);
+    }
+
+    drawChart(
+        savings,
+        roi,
+        cumulativeManual,
+        cumulativePostAutomation,
+        automationCost,
+        totalCycles
+    );
+}
+
+function calculateTotalCost(tableId) {
+    let total = 0;
+    document.querySelectorAll(`#${tableId} tbody tr`).forEach(row => {
+        const hours = parseFloat(row.querySelector('.hours').value) || 0;
+        const rate = parseFloat(row.querySelector('.rate').value) || 0;
+        const otherCost = parseFloat(row.querySelector('.otherCost').value) || 0;
+        const cost = (hours * rate) + otherCost;
+        row.querySelector('.calc').innerText = cost.toFixed(2);
+        total += cost;
+    });
+    return total;
+}
+
+function drawChart(savings, roi, manualCost, postAutomationCost, automationCost, totalCycles) {
+    const testCyclesPerYear = parseInt(document.getElementById('testCycles').value, 10);
+
+    const labels = Array.from({ length: totalCycles }, (_, i) => {
+        const year = Math.floor(i / testCyclesPerYear) + 1;
+        const cycle = (i % testCyclesPerYear) + 1;
+        return `Cycle ${cycle} (Year ${year})`;
+    });
+
+    if (roiChart) roiChart.destroy();
+
+    roiChart = new Chart(document.getElementById('roiChart').getContext('2d'), {
+        type: 'line',
+        data: {
+            labels,
+            datasets: [
+                {
+                    label: 'Cumulative Savings ($) (per year)',
+                    data: savings,
+                    borderColor: 'green',
+                    fill: false
+                },
+                {
+                    label: 'Cumulative ROI ($) (per year)',
+                    data: roi,
+                    borderColor: 'blue',
+                    fill: false
+                },
+                {
+                    label: 'Manual Execution Cost (Cumulative) (per year)',
+                    data: manualCost,
+                    borderColor: 'red',
+                    fill: false
+                },
+                {
+                    label: 'Post Automation Execution Cost (Cumulative) (per year)',
+                    data: postAutomationCost,
+                    borderColor: 'orange',
+                    fill: false
+                },
+                {
+                    label: 'One-time Automation Cost (per year)',
+                    data: automationCost,
+                    borderColor: 'purple',
+                    fill: false
+                }
+            ]
+        },
+        options: {
+    responsive: true,
+    maintainAspectRatio: false,
+    interaction: {
+        mode: 'index',
+        intersect: false
+    },
+    scales: {
+    x: {
+        grid: {
+            display: showGrid,
+            drawBorder: true,
+            color: 'rgba(255, 0, 0, 0.15)',   // visible but subtle
+            lineWidth: 1
+        }
+    },
+    y: {
+        beginAtZero: true,
+        grid: {
+            display: showGrid,
+            drawBorder: true,
+            color: 'rgba(255, 0, 0, 0.15)',   // visible but subtle
+            lineWidth: 1
+        }
+    }
+}
+
+}
+
+    });
+}
+
+
+
+function addRow(tableId, type, title="") {
+    const table = document.getElementById(tableId).getElementsByTagName('tbody')[0];
+    const row = table.insertRow();
+    if(title=="")
+    {
+    row.innerHTML = `
+        <td><input type="text" value="${type === 'manual' ? 'Manual Test' : type === 'postAutomation' ? 'Post Automation Test' : 'Automation Dev'}"></td>
+        <td><input type="number" class="hours" value="0" oninput="calculateROI()"></td>
+        <td><input type="number" class="rate" value="0" oninput="calculateROI()"></td>
+        <td><span class="calc">0</span></td>
+        <td><input type="number" class="otherCost" value="0" oninput="calculateROI()"></td>
+        <td><button onclick="removeRow(this)">Remove</button></td>
+    `;}
+    else
+    {
+        row.innerHTML = `
+        <td><input type="text" value="${title}"></td>
+        <td><input type="number" class="hours" value="0" oninput="calculateROI()"></td>
+        <td><input type="number" class="rate" value="0" oninput="calculateROI()"></td>
+        <td><span class="calc">0</span></td>
+        <td><input type="number" class="otherCost" value="0" oninput="calculateROI()"></td>
+        <td><button onclick="removeRow(this)">Remove</button></td>
+    `;
+    }
+    calculateROI();
+}
+
+function removeRow(button) {
+    button.closest('tr').remove();
+    calculateROI();
+}
+
+function downloadAsPDF() {
+
+window.print();
+}
+
+function toggleGrid() {
+    showGrid = !showGrid;
+    calculateROI(); // re-render chart with updated grid setting
+}
+
+// Add initial rows
+//['manualCostTable', 'executionCostTable', 'devCostTable'].forEach(tableId => addRow(tableId, tableId.replace('CostTable', '').toLowerCase()));
+addRow('manualCostTable', 'Execution Effort','Execution Effort');
+addRow('manualCostTable', 'Datasetup','Datasetup');
+addRow('manualCostTable', 'Manual Execution Effort','Manual Execution Effort');
+addRow('executionCostTable', 'Execution Effort','Execution Effort');
+addRow('executionCostTable', 'Datasetup Effort','Datasetup Effort');
+addRow('executionCostTable', 'Automation result analysis effort','Automation result analysis effort');
+addRow('devCostTable', 'Tool cost','Tool cost');
+addRow('devCostTable', 'Script Development Effort','Script Development Effort');
+addRow('devCostTable', 'Framework Development Effort','Framework Development Effort');
+addRow('devCostTable', 'Automation POC Effort','Automation POC Effort');
+
+calculateROI();
+</script>
+</div>
+</body>
+</html>

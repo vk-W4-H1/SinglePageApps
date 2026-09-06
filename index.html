@@ -1,0 +1,247 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=5.0">
+  <title>Dynamic Responsive Layout</title>
+  <style>
+    :root {
+      --bg-color: #f8f9fa;
+      --text-color: #212529;
+      --panel-bg: #ffffff;
+      --border-color: #e9ecef;
+      --button-bg: #e9ecef;
+      --button-active: #0d6efd;
+      --button-active-text: #ffffff;
+    }
+
+    [data-theme="dark"] {
+      --bg-color: #121212;
+      --text-color: #e0e0e0;
+      --panel-bg: #1e1e1e;
+      --border-color: #333333;
+      --button-bg: #2d2d2d;
+      --button-active: #375a7f;
+      --button-active-text: #ffffff;
+    }
+
+    * {
+      box-sizing: border-box;
+      margin: 0;
+      padding: 0;
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+    }
+
+    /* FIX 1: Use svh (small viewport height) to account for mobile browser URL bars */
+    body {
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      min-height: 100svh;
+      display: flex;
+      flex-direction: column;
+      transition: background-color 0.3s, color 0.3s;
+    }
+
+    header {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      padding: clamp(0.75rem, 2vw, 1.25rem);
+      background-color: var(--panel-bg);
+      border-bottom: 1px solid var(--border-color);
+    }
+
+    .theme-toggle {
+      background: var(--button-bg);
+      color: var(--text-color);
+      border: 1px solid var(--border-color);
+      padding: 0.5rem 1rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+    }
+
+    .app-container {
+      display: flex;
+      flex: 1;
+      overflow: hidden;
+      position: relative;
+    }
+
+    /* FIX 2: Fluid sidebar width using clamp(minimum, preferred percentage, maximum) */
+    .nav-frame {
+      width: clamp(200px, 25vw, 320px);
+      flex-shrink: 0;
+      background-color: var(--panel-bg);
+      border-right: 1px solid var(--border-color);
+      padding: clamp(0.75rem, 2vw, 1.25rem);
+      display: flex;
+      flex-direction: column;
+      gap: 0.5rem;
+      overflow-y: auto;
+    }
+
+    .nav-btn {
+      padding: 0.75rem 1rem;
+      background-color: var(--button-bg);
+      color: var(--text-color);
+      border: none;
+      border-radius: 6px;
+      text-align: left;
+      font-size: clamp(0.9rem, 1.2vw, 1rem);
+      cursor: pointer;
+      transition: background-color 0.2s;
+      width: 100%;
+    }
+
+    .nav-btn.active {
+      background-color: var(--button-active);
+      color: var(--button-active-text);
+    }
+
+    /* FIX 3: Dynamic content padding and fluid image handling */
+    .content-frame {
+      flex: 1;
+      padding: clamp(1rem, 3vw, 2.5rem);
+      overflow-y: auto;
+      background-color: var(--bg-color);
+      width: 100%;
+    }
+
+    .content-frame img, 
+    .content-frame iframe, 
+    .content-frame table {
+      max-width: 100%;
+      height: auto;
+    }
+
+    .back-btn {
+      display: none;
+      margin-bottom: 1rem;
+      padding: 0.5rem 1rem;
+      background-color: var(--button-bg);
+      color: var(--text-color);
+      border: none;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    /* FIX 4: Mobile Breakpoint with full width override */
+    @media (max-width: 768px) {
+      .app-container {
+        flex-direction: column;
+      }
+
+      .nav-frame {
+        width: 100%;
+        border-right: none;
+        flex: 1;
+      }
+
+      .content-frame {
+        display: none;
+        width: 100%;
+      }
+
+      .mobile-show-content .nav-frame {
+        display: none;
+      }
+
+      .mobile-show-content .content-frame {
+        display: block;
+      }
+
+      .back-btn {
+        display: inline-block;
+      }
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h2>Dashboard</h2>
+    <button class="theme-toggle" id="themeToggle">🌙 Dark Mode</button>
+  </header>
+
+  <div class="app-container" id="appContainer">
+    <nav class="nav-frame" id="navContainer">
+      <!-- Generated via JS -->
+    </nav>
+
+    <main class="content-frame">
+      <button class="back-btn" onclick="showNav()">&larr; Back to Menu</button>
+      <div id="contentContainer">
+        <p>Loading application...</p>
+      </div>
+    </main>
+  </div>
+
+  <script>
+    const themeToggleBtn = document.getElementById('themeToggle');
+    const htmlElement = document.documentElement;
+
+    themeToggleBtn.addEventListener('click', () => {
+      const currentTheme = htmlElement.getAttribute('data-theme');
+      const newTheme = currentTheme === 'light' ? 'dark' : 'light';
+      htmlElement.setAttribute('data-theme', newTheme);
+      themeToggleBtn.textContent = newTheme === 'light' ? '🌙 Dark Mode' : '☀️ Light Mode';
+    });
+
+    async function loadNavigation() {
+      try {
+        const response = await fetch('menu.json');
+        if (!response.ok) throw new Error('Could not fetch menu.json');
+        
+        const menuItems = await response.json();
+        const navContainer = document.getElementById('navContainer');
+        navContainer.innerHTML = '';
+
+        menuItems.forEach((item, index) => {
+          const btn = document.createElement('button');
+          btn.className = `nav-btn ${index === 0 ? 'active' : ''}`;
+          btn.textContent = item.title;
+          btn.onclick = () => loadPage(item.url, btn);
+          navContainer.appendChild(btn);
+        });
+
+        if (menuItems.length > 0) {
+          loadPage(menuItems[0].url, navContainer.children[0], false);
+        }
+      } catch (error) {
+        document.getElementById('contentContainer').innerHTML = 
+          `<p style="color: red;">Error loading menu config: ${error.message}</p>`;
+      }
+    }
+
+    async function loadPage(pageUrl, btnElement, isMobileClick = true) {
+      const contentContainer = document.getElementById('contentContainer');
+      
+      try {
+        const response = await fetch(pageUrl);
+        if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
+        
+        const html = await response.text();
+        contentContainer.innerHTML = html;
+
+        document.querySelectorAll('.nav-btn').forEach(btn => btn.classList.remove('active'));
+        if (btnElement) btnElement.classList.add('active');
+
+        if (isMobileClick) {
+          document.getElementById('appContainer').classList.add('mobile-show-content');
+        }
+      } catch (error) {
+        contentContainer.innerHTML = 
+          `<p style="color: red;">Failed to load content from <code>${pageUrl}</code>.</p>`;
+      }
+    }
+
+    function showNav() {
+      document.getElementById('appContainer').classList.remove('mobile-show-content');
+    }
+
+    loadNavigation();
+  </script>
+</body>
+</html>

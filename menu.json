@@ -1,0 +1,21 @@
+[
+  {
+    "id": "overview",
+    "title": "Overview1",
+    "icon": "⚡",
+    "content": "<h1>Overview Dashboard</h1><p>This panel rendered dynamically using modern DOM updates rather than an iframe.</p>",
+    "url" : "SHA256OfflineGenerator/sha256hashgen.html"
+  },
+  {
+    "id": "analytics",
+    "title": "Analytics",
+    "icon": "📊",
+    "content": "<h1>Analytics</h1><p>Real-time analytics view rendered inside the primary application shell.</p>"
+  },
+  {
+    "id": "settings",
+    "title": "Settings",
+    "icon": "⚙️",
+    "content": "<h1>Settings</h1><p>Adjust system configurations and personal preferences here.</p>"
+  }
+]

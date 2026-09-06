@@ -1,0 +1,268 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Local Editor & Canvas with OCR</title>
+    <!-- Include Tesseract.js for client-side OCR -->
+    <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
+    <style>
+        body {
+            font-family: sans-serif;
+            margin: 0;
+            padding: 20px;
+            display: flex;
+            flex-direction: column;
+            gap: 20px;
+            height: 100vh;
+            box-sizing: border-box;
+        }
+        .container {
+            display: flex;
+            gap: 20px;
+            flex: 1;
+            min-height: 0;
+        }
+        .section {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            gap: 10px;
+        }
+        textarea {
+            width: 100%;
+            flex: 1;
+            padding: 10px;
+            box-sizing: border-box;
+            resize: none;
+            font-size: 16px;
+        }
+        .canvas-container {
+            flex: 1;
+            border: 1px solid #ccc;
+            position: relative;
+            background: #ffffff;
+        }
+        canvas {
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            cursor: crosshair;
+        }
+        .controls {
+            display: flex;
+            gap: 10px;
+            align-items: center;
+            flex-wrap: wrap;
+        }
+        button {
+            padding: 6px 12px;
+            cursor: pointer;
+        }
+        #ocrBtn {
+            background-color: #007bff;
+            color: white;
+            border: none;
+            border-radius: 4px;
+            font-weight: bold;
+        }
+        #ocrBtn:disabled {
+            background-color: #cccccc;
+            cursor: not-allowed;
+        }
+        #status {
+            font-size: 14px;
+            color: #555;
+            margin-left: 5px;
+        }
+    </style>
+</head>
+<body>
+
+    <h1>Local Text & Canvas Editor with OCR</h1>
+
+    <div class="container">
+        <!-- Text Editor Section -->
+        <div class="section">
+            <h2>Text Editor</h2>
+            <textarea id="textEditor" placeholder="Type your notes here... Auto-saves instantly."></textarea>
+        </div>
+
+        <!-- Canvas Drawing Section -->
+        <div class="section">
+            <h2>Canvas Drawing</h2>
+            <div class="controls">
+                <button id="clearCanvas">Clear</button>
+                <input type="color" id="colorPicker" value="#000000">
+                <input type="range" id="lineWidth" min="1" max="20" value="5" title="Line Width">
+                <button id="ocrBtn">Convert to Text (OCR) 🔍</button>
+                <span id="status"></span>
+            </div>
+            <div class="canvas-container">
+                <canvas id="paintCanvas"></canvas>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        // --- Text Editor Logic ---
+        const textarea = document.getElementById('textEditor');
+        
+        textarea.value = localStorage.getItem('local_notes') || '';
+        textarea.addEventListener('input', () => {
+            localStorage.setItem('local_notes', textarea.value);
+        });
+
+        // --- Canvas Drawing Logic ---
+        const canvas = document.getElementById('paintCanvas');
+        const ctx = canvas.getContext('2d');
+        const clearBtn = document.getElementById('clearCanvas');
+        const colorPicker = document.getElementById('colorPicker');
+        const lineWidthPicker = document.getElementById('lineWidth');
+        const ocrBtn = document.getElementById('ocrBtn');
+        const statusSpan = document.getElementById('status');
+
+        let drawing = false;
+
+        function resizeCanvas() {
+            const rect = canvas.parentElement.getBoundingClientRect();
+            // Create a temporary canvas to hold current drawings during resize
+            const tempCanvas = document.createElement('canvas');
+            tempCanvas.width = canvas.width;
+            tempCanvas.height = canvas.height;
+            const tempCtx = tempCanvas.getContext('2d');
+            tempCtx.drawImage(canvas, 0, 0);
+
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            
+            // Reapply white background default for cleaner OCR results
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            
+            // Restore drawing
+            ctx.drawImage(tempCanvas, 0, 0);
+            loadCanvas();
+        }
+
+        function startDrawing(e) {
+            drawing = true;
+            draw(e);
+        }
+
+        function stopDrawing() {
+            drawing = false;
+            ctx.beginPath();
+            saveCanvas();
+        }
+
+        function draw(e) {
+            if (!drawing) return;
+            
+            const rect = canvas.getBoundingClientRect();
+            const clientX = e.clientX || (e.touches && e.touches[0].clientX);
+            const clientY = e.clientY || (e.touches && e.touches[0].clientY);
+            
+            if (clientX === undefined || clientY === undefined) return;
+
+            const x = clientX - rect.left;
+            const y = clientY - rect.top;
+
+            ctx.lineWidth = lineWidthPicker.value;
+            ctx.lineCap = 'round';
+            ctx.strokeStyle = colorPicker.value;
+
+            ctx.lineTo(x, y);
+            ctx.stroke();
+            ctx.beginPath();
+            ctx.moveTo(x, y);
+        }
+
+        function saveCanvas() {
+            localStorage.setItem('local_canvas', canvas.toDataURL());
+        }
+
+        function loadCanvas() {
+            const dataURL = localStorage.getItem('local_canvas');
+            if (dataURL) {
+                const img = new Image();
+                img.src = dataURL;
+                img.onload = () => {
+                    ctx.drawImage(img, 0, 0);
+                };
+            }
+        }
+
+        // Event Listeners for Drawing
+        canvas.addEventListener('mousedown', startDrawing);
+        canvas.addEventListener('mouseup', stopDrawing);
+        canvas.addEventListener('mousemove', draw);
+        canvas.addEventListener('mouseleave', stopDrawing);
+
+        canvas.addEventListener('touchstart', (e) => { if(e.cancelable) e.preventDefault(); startDrawing(e); }, {passive: false});
+        canvas.addEventListener('touchend', stopDrawing);
+        canvas.addEventListener('touchmove', (e) => { if(e.cancelable) e.preventDefault(); draw(e); }, {passive: false});
+
+        clearBtn.addEventListener('click', () => {
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            localStorage.removeItem('local_canvas');
+        });
+
+        window.addEventListener('resize', resizeCanvas);
+        window.addEventListener('DOMContentLoaded', () => {
+            // Initial flash layout setup
+            const rect = canvas.parentElement.getBoundingClientRect();
+            canvas.width = rect.width;
+            canvas.height = rect.height;
+            ctx.fillStyle = '#ffffff';
+            ctx.fillRect(0, 0, canvas.width, canvas.height);
+            loadCanvas();
+        });
+
+        // --- OCR Scripting Logic ---
+        ocrBtn.addEventListener('click', async () => {
+            ocrBtn.disabled = true;
+            statusSpan.textContent = "Loading OCR Engine...";
+
+            try {
+                // Convert canvas data to image URL for processing
+                const imageBufferUrl = canvas.toDataURL('image/png'); 
+                
+                // Process image with Tesseract English language pack
+                const result = await Tesseract.recognize(imageBufferUrl, 'eng', {
+                    logger: m => {
+                        if(m.status === 'recognizing') {
+                            statusSpan.textContent = `Analyzing: ${Math.round(m.progress * 100)}%`;
+                        }
+                    }
+                });
+
+                const textOutput = result.data.text.trim();
+                
+                if (textOutput) {
+                    // Append converted text to the text editor field
+                    const currentText = textarea.value;
+                    textarea.value = currentText ? `${currentText}\n${textOutput}` : textOutput;
+                    localStorage.setItem('local_notes', textarea.value);
+                    statusSpan.textContent = "Conversion Complete!";
+                } else {
+                    statusSpan.textContent = "No text detected. Try writing more clearly.";
+                }
+
+            } catch (error) {
+                console.error(error);
+                statusSpan.textContent = "Error scanning image.";
+            } finally {
+                // Reset button after brief delay
+                setTimeout(() => {
+                    ocrBtn.disabled = false;
+                    statusSpan.textContent = "";
+                }, 3000);
+            }
+        });
+    </script>
+</body>
+</html>
