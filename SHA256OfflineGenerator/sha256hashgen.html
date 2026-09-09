@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Universal SHA-256 Hasher</title>
+  <!-- Fallback hashing library for non-HTTPS / Android local file access -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/crypto-js/4.1.1/crypto-js.min.js"></script>
+  <style>
+    * {
+      box-sizing: border-box;
+      font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+    }
+
+    body {
+      background-color: #0f172a;
+      color: #f8fafc;
+      display: flex;
+      justify-content: center;
+      align-items: center;
+      min-height: 100vh;
+      margin: 0;
+      padding: 1rem;
+    }
+
+    .card {
+      background-color: #1e293b;
+      border: 1px solid #334155;
+      border-radius: 12px;
+      padding: 2rem;
+      width: 100%;
+      max-width: 600px;
+      box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.3);
+    }
+
+    h1 {
+      margin-top: 0;
+      font-size: 1.5rem;
+      color: #38bdf8;
+    }
+
+    p {
+      color: #94a3b8;
+      font-size: 0.95rem;
+    }
+
+    .drop-zone {
+      border: 2px dashed #475569;
+      border-radius: 8px;
+      padding: 2.5rem 1rem;
+      text-align: center;
+      cursor: pointer;
+      transition: border-color 0.2s ease, background-color 0.2s ease;
+      margin: 1.5rem 0;
+      background-color: #0f172a;
+    }
+
+    .drop-zone:hover, .drop-zone.dragover {
+      border-color: #38bdf8;
+      background-color: rgba(56, 189, 248, 0.05);
+    }
+
+    .file-input {
+      display: none;
+    }
+
+    .btn {
+      background-color: #0284c7;
+      color: #fff;
+      border: none;
+      padding: 0.6rem 1.2rem;
+      border-radius: 6px;
+      cursor: pointer;
+      font-size: 0.9rem;
+      font-weight: 500;
+      transition: background-color 0.2s ease;
+    }
+
+    .btn:hover {
+      background-color: #0369a1;
+    }
+
+    .result-container {
+      margin-top: 1.5rem;
+      display: none;
+    }
+
+    .file-info,
+    .elapsedTime
+    {
+      font-size: 0.85rem;
+      color: #cbd5e1;
+      margin-bottom: 0.5rem;
+    }
+
+    .hash-box {
+      background-color: #0f172a;
+      border: 1px solid #334155;
+      border-radius: 6px;
+      padding: 0.75rem;
+      font-family: monospace;
+      font-size: 0.85rem;
+      word-break: break-all;
+      color: #4ade80;
+      user-select: all;
+    }
+
+    .status {
+      font-size: 0.9rem;
+      color: #38bdf8;
+      display: none;
+      word-break: break-word;
+    }
+
+    .mode-badge {
+      display: inline-block;
+      font-size: 0.75rem;
+      padding: 0.2rem 0.5rem;
+      border-radius: 4px;
+      margin-top: 0.5rem;
+      background-color: #334155;
+      color: #94a3b8;
+    }
+  </style>
+</head>
+<body>
+
+  <div class="card">
+    <h1>SHA-256 File Hasher</h1>
+    <p>Select or drag & drop a file to compute its SHA-256 hash locally on your tablet.</p>
+
+    <div class="drop-zone" id="dropZone">
+      <p id="dropZoneText">Drag & drop your file here, or click to browse</p>
+      <button class="btn" onclick="document.getElementById('fileInput').click()">Select File</button>
+      <input type="file" id="fileInput" class="file-input" />
+    </div>
+
+    <div class="status" id="statusText">Computing SHA-256 hash...</div>
+
+    <div class="result-container" id="resultContainer">
+      <div class="file-info" id="fileInfo"></div>
+      <label for="hashOutput" style="font-size: 0.85rem; color: #94a3b8;">SHA-256 Hash:</label>
+      <div class="hash-box" id="hashOutput"></div>
+      <div class="elapsedTime" id="elapsedTime"></div>
+      <div class="mode-badge" id="modeBadge"></div>
+    </div>
+  </div>
+
+  <script>
+    const dropZone = document.getElementById('dropZone');
+    const fileInput = document.getElementById('fileInput');
+    const statusText = document.getElementById('statusText');
+    const resultContainer = document.getElementById('resultContainer');
+    const fileInfo = document.getElementById('fileInfo');
+    const hashOutput = document.getElementById('hashOutput');
+    const elapsedTimediv = document.getElementById('elapsedTime');
+    const modeBadge = document.getElementById('modeBadge');
+
+    ['dragenter', 'dragover'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.add('dragover');
+      }, false);
+    });
+
+    ['dragleave', 'drop'].forEach(eventName => {
+      dropZone.addEventListener(eventName, (e) => {
+        e.preventDefault();
+        dropZone.classList.remove('dragover');
+      }, false);
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      const files = e.dataTransfer.files;
+      if (files.length > 0) processFile(files[0]);
+    });
+
+    fileInput.addEventListener('change', (e) => {
+      if (e.target.files.length > 0) processFile(e.target.files[0]);
+    });
+
+    async function processFile(file) {
+      resultContainer.style.display = 'none';
+      statusText.style.display = 'block';
+      statusText.style.color = '#38bdf8';
+      statusText.textContent = 'Computing SHA-256 hash...';
+      // 1. Take the starting time
+      
+
+      try {
+        const startTime = performance.now();
+        let hashHex = '';
+        let engineUsed = '';
+
+        // Check if native Web Crypto API (crypto.subtle) is supported in current context
+        if (window.crypto && window.crypto.subtle) {
+          const arrayBuffer = await file.arrayBuffer();
+          const hashBuffer = await crypto.subtle.digest('SHA-256', arrayBuffer);
+          const hashArray = Array.from(new Uint8Array(hashBuffer));
+          hashHex = hashArray.map(b => b.toString(16).padStart(2, '0')).join('');
+          engineUsed = 'Engine: Native Web Crypto (Hardware Accelerated)';
+        } 
+        // Fallback to CryptoJS for Android file:// or HTTP contexts
+        else if (window.CryptoJS) {
+          hashHex = await hashWithCryptoJS(file);
+          engineUsed = 'Engine: JS Fallback (Compatible with Android file://)';
+        } 
+        else {
+          throw new Error('No compatible crypto engine available.');
+        }
+
+        fileInfo.textContent = `File: ${file.name} (${formatBytes(file.size)})`;
+        hashOutput.textContent = hashHex;
+        modeBadge.textContent = engineUsed;
+        
+        statusText.style.display = 'none';
+        resultContainer.style.display = 'block';
+        // 3. Take the ending time
+        const endTime = performance.now();
+
+        // 4. Calculate and log the elapsed time
+        const elapsedTime = endTime - startTime;
+        // Convert to seconds
+        const elapsedSeconds = elapsedTime / 1000;
+        elapsedTimediv.textContent = "Processed in : " + elapsedSeconds.toFixed(2) + " seconds"
+      } catch (error) {
+        console.error(error);
+        statusText.style.display = 'block';
+        statusText.style.color = '#ef4444';
+        statusText.textContent = 'Error computing hash: ' + (error.message || error);
+      }
+    }
+
+    function hashWithCryptoJS(file) {
+      return new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = function (e) {
+          try {
+            const wordArray = CryptoJS.lib.WordArray.create(e.target.result);
+            const hash = CryptoJS.SHA256(wordArray).toString(CryptoJS.enc.Hex);
+            resolve(hash);
+          } catch (err) {
+            reject(err);
+          }
+        };
+        reader.onerror = () => reject(new Error('Failed to read file from storage.'));
+        reader.readAsArrayBuffer(file);
+      });
+    }
+
+    function formatBytes(bytes) {
+      if (bytes === 0) return '0 Bytes';
+      const k = 1024;
+      const sizes = ['Bytes', 'KB', 'MB', 'GB'];
+      const i = Math.floor(Math.log(bytes) / Math.log(k));
+      return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+    }
+  </script>
+  
+</body>
+</html>
