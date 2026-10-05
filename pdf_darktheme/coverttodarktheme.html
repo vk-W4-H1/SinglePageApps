@@ -1,0 +1,275 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Offline PDF Dark Reader</title>
+
+  <!-- Library loaded in <head> with defer (downloads immediately, executes safely) -->
+  <script src="https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js" defer></script>
+
+  <style>
+    :root {
+      --bg-color: #121212;
+      --card-bg: #1e1e1e;
+      --accent-color: #6ddf69;
+      --text-color: #e0e0e0;
+      --border-color: #333333;
+    }
+
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+
+    body {
+      font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+      background-color: var(--bg-color);
+      color: var(--text-color);
+      min-height: 100vh;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+    }
+
+    header { text-align: center; margin-bottom: 20px; }
+    h1 { font-size: 1.8rem; color: var(--accent-color); margin-bottom: 6px; }
+    p.subtitle { font-size: 0.9rem; color: #aaa; }
+
+    #drop-zone {
+      width: 100%;
+      max-width: 800px;
+      border: 2px dashed var(--accent-color);
+      border-radius: 12px;
+      padding: 40px 20px;
+      text-align: center;
+      background-color: var(--card-bg);
+      cursor: pointer;
+      transition: background-color 0.2s, border-color 0.2s;
+      margin-bottom: 20px;
+    }
+
+    #drop-zone.dragover {
+      background-color: #2a2a2a;
+      border-color: #03dac6;
+    }
+
+    #drop-zone p { font-size: 1.1rem; margin-bottom: 12px; }
+
+    .btn {
+      display: inline-block;
+      background-color: var(--accent-color);
+      color: #000;
+      font-weight: bold;
+      padding: 10px 20px;
+      border-radius: 6px;
+      cursor: pointer;
+      transition: opacity 0.2s;
+    }
+
+    .btn:hover { opacity: 0.9; }
+    #file-input { display: none; }
+
+    #controls {
+      display: none;
+      gap: 15px;
+      align-items: center;
+      background-color: var(--card-bg);
+      padding: 12px 24px;
+      border-radius: 8px;
+      margin-bottom: 20px;
+      border: 1px solid var(--border-color);
+    }
+
+    #controls button {
+      background-color: #333;
+      color: #fff;
+      border: none;
+      padding: 6px 12px;
+      border-radius: 4px;
+      cursor: pointer;
+    }
+
+    #controls button:hover { background-color: #444; }
+
+    #viewer-container {
+      width: 100%;
+      max-width: 900px;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      gap: 20px;
+    }
+
+    .page-container {
+      background-color: #000;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+      border-radius: 4px;
+      overflow: hidden;
+    }
+
+    canvas {
+      display: block;
+      filter: invert(0.92) hue-rotate(180deg);
+    }
+
+    #status {
+      margin-top: 10px;
+      font-size: 0.95rem;
+      color: var(--accent-color);
+    }
+  </style>
+</head>
+<body>
+
+  <header>
+    <h1>Offline PDF Dark Reader</h1>
+    <p class="subtitle">🔒 All files are rendered locally inside your browser — zero network uploads.</p>
+  </header>
+
+  <div id="drop-zone">
+    <p>Drag & Drop your PDF file here</p>
+    <p style="font-size: 0.85rem; color: #888; margin-bottom: 12px;">OR</p>
+    <label for="file-input" class="btn">Select PDF File</label>
+    <input type="file" id="file-input" accept="application/pdf">
+  </div>
+
+  <div id="status">Loading PDF library...</div>
+
+  <div id="controls">
+    <button id="zoom-out">Zoom -</button>
+    <span id="zoom-level">100%</span>
+    <button id="zoom-in">Zoom +</button>
+  </div>
+
+  <div id="viewer-container"></div>
+
+  <!-- Application logic runs at the bottom of <body> -->
+  <script>
+    const dropZone = document.getElementById('drop-zone');
+    const fileInput = document.getElementById('file-input');
+    const viewerContainer = document.getElementById('viewer-container');
+    const statusText = document.getElementById('status');
+    const controls = document.getElementById('controls');
+    const zoomInBtn = document.getElementById('zoom-in');
+    const zoomOutBtn = document.getElementById('zoom-out');
+    const zoomLevelText = document.getElementById('zoom-level');
+
+    let currentPdf = null;
+    let currentScale = 1.25;
+
+    // Preload worker instantly when DOM is ready
+    window.addEventListener('DOMContentLoaded', async () => {
+      try {
+        const workerUrl = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+        const response = await fetch(workerUrl);
+        const workerScript = await response.text();
+        
+        // Convert worker script into a local Blob URL to prevent file:// CORS blocks
+        const blob = new Blob([workerScript], { type: 'text/javascript' });
+        pdfjsLib.GlobalWorkerOptions.workerSrc = URL.createObjectURL(blob);
+        
+        statusText.textContent = "Libraries loaded! You can safely go offline now.";
+      } catch (err) {
+        statusText.textContent = "Error preloading worker. Make sure you are online during page open.";
+      }
+    });
+
+    // --- Drag & Drop Handlers ---
+    dropZone.addEventListener('dragover', (e) => {
+      e.preventDefault();
+      dropZone.classList.add('dragover');
+    });
+
+    dropZone.addEventListener('dragleave', () => {
+      dropZone.classList.remove('dragover');
+    });
+
+    dropZone.addEventListener('drop', (e) => {
+      e.preventDefault();
+      dropZone.classList.remove('dragover');
+      const files = e.dataTransfer.files;
+      if (files.length > 0 && files[0].type === 'application/pdf') {
+        processFile(files[0]);
+      } else {
+        statusText.textContent = 'Please drop a valid PDF file.';
+      }
+    });
+
+    // --- File Input Handler ---
+    fileInput.addEventListener('change', (e) => {
+      const files = e.target.files;
+      if (files.length > 0) {
+        processFile(files[0]);
+      }
+    });
+
+    // --- Core Local Conversion Logic ---
+    function processFile(file) {
+      statusText.textContent = `Loading "${file.name}" locally...`;
+      
+      const fileReader = new FileReader();
+      fileReader.onload = function() {
+        const typedArray = new Uint8Array(this.result);
+        
+        pdfjsLib.getDocument(typedArray).promise.then(pdf => {
+          currentPdf = pdf;
+          statusText.textContent = `File loaded: ${pdf.numPages} page(s).`;
+          controls.style.display = 'flex';
+          renderAllPages();
+        }).catch(err => {
+          statusText.textContent = 'Error parsing PDF: ' + err.message;
+        });
+      };
+      
+      fileReader.readAsArrayBuffer(file);
+    }
+
+    // --- Render Pages to Canvas ---
+    async function renderAllPages() {
+      if (!currentPdf) return;
+      
+      viewerContainer.innerHTML = '';
+      
+      for (let pageNum = 1; pageNum <= currentPdf.numPages; pageNum++) {
+        const page = await currentPdf.getPage(pageNum);
+        const viewport = page.getViewport({ scale: currentScale });
+
+        const pageWrapper = document.createElement('div');
+        pageWrapper.className = 'page-container';
+
+        const canvas = document.createElement('canvas');
+        const context = canvas.getContext('2d');
+        
+        canvas.height = viewport.height;
+        canvas.width = viewport.width;
+
+        pageWrapper.appendChild(canvas);
+        viewerContainer.appendChild(pageWrapper);
+
+        const renderContext = {
+          canvasContext: context,
+          viewport: viewport
+        };
+        
+        await page.render(renderContext).promise;
+      }
+    }
+
+    // --- Zoom Controls ---
+    zoomInBtn.addEventListener('click', () => {
+      if (currentScale < 3.0) {
+        currentScale += 0.25;
+        zoomLevelText.textContent = `${Math.round(currentScale * 80)}%`;
+        renderAllPages();
+      }
+    });
+
+    zoomOutBtn.addEventListener('click', () => {
+      if (currentScale > 0.5) {
+        currentScale -= 0.25;
+        zoomLevelText.textContent = `${Math.round(currentScale * 80)}%`;
+        renderAllPages();
+      }
+    });
+  </script>
+</body>
+</html>
