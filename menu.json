@@ -1,21 +1,23 @@
 [
   {
-    "id": "overview",
-    "title": "Overview1",
+    "id": "Sha256generator",
+    "title": "Sha256generator",
     "icon": "⚡",
-    "content": "<h1>Overview Dashboard</h1><p>This panel rendered dynamically using modern DOM updates rather than an iframe.</p>",
+    "content": "<h1>Sha256generator</h1><p>Generate SHA256 hashes for your data with ease. This tool allows you to input text or files and receive the corresponding SHA256 hash instantly.</p>",
     "url" : "SHA256OfflineGenerator/sha256hashgen.html"
   },
   {
-    "id": "analytics",
-    "title": "Analytics",
-    "icon": "📊",
-    "content": "<h1>Analytics</h1><p>Real-time analytics view rendered inside the primary application shell.</p>"
+    "id": "PDFAssembler",
+    "title": "PDF Assembler",
+    "icon": "�",
+    "content": "<h1>PDF Assembler</h1><p>Combine multiple PDF files into a single document with ease.</p>",
+    "url" : "PDFAssembler/v6_mobilefriendly.html"
   },
   {
-    "id": "settings",
-    "title": "Settings",
-    "icon": "⚙️",
-    "content": "<h1>Settings</h1><p>Adjust system configurations and personal preferences here.</p>"
+    "id": "PdfDarkTheme",
+    "title": "PDF Dark Theme",
+    "icon": "🌙",
+    "content": "<h1>PDF Dark Theme</h1><p>Adjust the appearance of your PDF viewer with our dark theme option.</p>",
+    "url" : "pdf_darktheme/coverttodarktheme.html"
   }
 ]
